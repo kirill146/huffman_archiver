@@ -10,13 +10,11 @@ using namespace std;
 size_t const size_of_block = 4096;
 
 int64_t encode(const char* input, const char* output) {
-    ifstream fin;
-    fin.open(input, std::ios_base::binary);
+    ifstream fin(input, std::ios_base::binary);
     if (!fin) {
         throw std::invalid_argument("can not open input file");
     }
-    ofstream fout;
-    fout.open(output, std::ios_base::binary);
+    ofstream fout(output, std::ios_base::binary);
     if (!fout) {
         throw std::invalid_argument("can not open output file");
     }
@@ -34,6 +32,9 @@ int64_t encode(const char* input, const char* output) {
     for (int64_t i = 0; i < cnt_of_blocks; ++i) {
         int size = (i == cnt_of_blocks - 1 ? len_of_last_block : size_of_block);
         fin.read((char*)buf.data(), size);
+        if ((fin.rdstate() & std::ifstream::failbit) != 0) {
+            throw std::invalid_argument("error while reading file");
+        }
         for (int j = 0; j < size; ++j) {
             ++cnt[buf[j]];
         }
@@ -44,6 +45,9 @@ int64_t encode(const char* input, const char* output) {
     for (int64_t i = 0; i < cnt_of_blocks; ++i) {
         int64_t size = (i == cnt_of_blocks - 1 ? len_of_last_block : size_of_block);
         fin.read((char*)buf.data(), size);
+        if ((fin.rdstate() & std::ifstream::failbit) != 0) {
+            throw std::invalid_argument("error while reading file");
+        }
         try {
             huff.encode(buf.data(), size, (i == cnt_of_blocks - 1));
         } catch (std::invalid_argument const& e) {
@@ -55,13 +59,11 @@ int64_t encode(const char* input, const char* output) {
 }
 
 int64_t decode(const char* input, const char* output) {
-    ifstream fin;
-    fin.open(input, std::ios_base::binary);
+    ifstream fin(input, std::ios_base::binary);
     if (!fin) {
         throw std::invalid_argument("can not open input file");
     }
-    ofstream fout;
-    fout.open(output, std::ios_base::binary);
+    ofstream fout(output, std::ios_base::binary);
     if (!fout) {
         throw std::invalid_argument("can not open output file");
     }
@@ -78,6 +80,9 @@ int64_t decode(const char* input, const char* output) {
     for (int64_t i = 0; i < cnt_of_blocks; ++i) {
         int size = (i == cnt_of_blocks - 1 ? len_of_last_block : size_of_block);
         fin.read((char*)buf.data(), size);
+        if ((fin.rdstate() & std::ifstream::failbit) != 0) {
+            throw std::invalid_argument("error while reading file");
+        }
         try {
             huff.decode(buf.data(), size, (i == cnt_of_blocks - 1));
         } catch (std::invalid_argument const& e) {
