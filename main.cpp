@@ -9,87 +9,82 @@ using namespace std;
 
 size_t const size_of_block = 4096;
 
-long long encode(const char* input, const char* output) {
-    FILE* inputFile = fopen(input, "rb");
-    if (!inputFile) {
+int64_t encode(const char* input, const char* output) {
+    ifstream fin;
+    fin.open(input, std::ios_base::binary);
+    if (!fin) {
         throw std::invalid_argument("can not open input file");
     }
-    FILE* outputFile = fopen(output, "wb");
-    if (!outputFile) {
+    ofstream fout;
+    fout.open(output, std::ios_base::binary);
+    if (!fout) {
         throw std::invalid_argument("can not open output file");
     }
-    unsigned char* buf = static_cast<unsigned char*> (operator new(size_of_block));
-    vector<long long> cnt(256);
-    size_t size;
-    size_t cnt_of_blocks = 0;
-    while ((size = fread(buf, 1, size_of_block, inputFile)) == size_of_block) {
-        for (size_t j = 0; j < size_of_block; ++j) {
+    vector<u_char> buf(size_of_block);
+    fin.seekg(0, fin.end);
+    int64_t len_of_file = fin.tellg();
+    fin.seekg(0, fin.beg);
+    int64_t cnt_of_blocks = len_of_file / size_of_block + (bool)(len_of_file % size_of_block);
+    int64_t len_of_last_block = len_of_file % size_of_block;
+    if (len_of_last_block == 0) {
+        len_of_last_block = size_of_block;
+    }
+
+    vector<int64_t> cnt(256);
+    for (int64_t i = 0; i < cnt_of_blocks; ++i) {
+        int size = (i == cnt_of_blocks - 1 ? len_of_last_block : size_of_block);
+        fin.read((char*)buf.data(), size);
+        for (int j = 0; j < size; ++j) {
             ++cnt[buf[j]];
         }
-        ++cnt_of_blocks;
     }
-    for (size_t j = 0; j < size; ++j) {
-        ++cnt[buf[j]];
-    }
-    long long len_of_file = (long long) cnt_of_blocks * size_of_block + size;
-    if (size) {
-        ++cnt_of_blocks;
-    }
-    rewind(inputFile);
-
+    fin.seekg(0, fin.beg);
     huffman huff;
     huff.build_tree(cnt);
-    for (size_t i = 0; i < cnt_of_blocks; ++i) {
-        size = fread(buf, 1, size_of_block, inputFile);
+    for (int64_t i = 0; i < cnt_of_blocks; ++i) {
+        int64_t size = (i == cnt_of_blocks - 1 ? len_of_last_block : size_of_block);
+        fin.read((char*)buf.data(), size);
         try {
-            huff.encode(buf, size, (i == cnt_of_blocks - 1));
+            huff.encode(buf.data(), size, (i == cnt_of_blocks - 1));
         } catch (std::invalid_argument const& e) {
-            operator delete(buf);
             throw e;
         }
-        fwrite((char*)huff.get_buffer(), 1, huff.get_size_of_buffer(), outputFile);
+        fout.write((char*)huff.get_buffer(), huff.get_size_of_buffer());
     }
-    fclose(inputFile);
-    fclose(outputFile);
-    operator delete(buf);
     return len_of_file;
 }
 
-long long decode(const char* input, const char* output) {
-    FILE* inputFile = fopen(input, "rb");
-    if (!inputFile) {
+int64_t decode(const char* input, const char* output) {
+    ifstream fin;
+    fin.open(input, std::ios_base::binary);
+    if (!fin) {
         throw std::invalid_argument("can not open input file");
     }
-    FILE* outputFile = fopen(output, "wb");
-    if (!outputFile) {
+    ofstream fout;
+    fout.open(output, std::ios_base::binary);
+    if (!fout) {
         throw std::invalid_argument("can not open output file");
     }
-    unsigned char* buf = static_cast<unsigned char*> (operator new(size_of_block));
-    size_t size;
-    size_t cnt_of_blocks = 0;
-    while ((size = fread(buf, 1, size_of_block, inputFile)) == size_of_block) {
-        ++cnt_of_blocks;
+    vector<u_char> buf(size_of_block);
+    fin.seekg(0, fin.end);
+    int64_t len_of_file = fin.tellg();
+    fin.seekg(0, fin.beg);
+    int64_t cnt_of_blocks = len_of_file / size_of_block + (bool)(len_of_file % size_of_block);
+    int64_t len_of_last_block = len_of_file % size_of_block;
+    if (len_of_last_block == 0) {
+        len_of_last_block = size_of_block;
     }
-    long long len_of_file = (long long)cnt_of_blocks * size_of_block + size;
-    if (size) {
-        ++cnt_of_blocks;
-    }
-    rewind(inputFile);
-
     huffman huff;
-    for (size_t i = 0; i < cnt_of_blocks; ++i) {
-        size = fread(buf, 1, size_of_block, inputFile);
+    for (int64_t i = 0; i < cnt_of_blocks; ++i) {
+        int size = (i == cnt_of_blocks - 1 ? len_of_last_block : size_of_block);
+        fin.read((char*)buf.data(), size);
         try {
-            huff.decode(buf, size, (i == cnt_of_blocks - 1));
+            huff.decode(buf.data(), size, (i == cnt_of_blocks - 1));
         } catch (std::invalid_argument const& e) {
-            operator delete(buf);
             throw e;
         }
-        fwrite((char*)huff.get_buffer(), 1, huff.get_size_of_buffer(), outputFile);
+        fout.write((char*)huff.get_buffer(), huff.get_size_of_buffer());
     }
-    fclose(inputFile);
-    fclose(outputFile);
-    operator delete(buf);
     return len_of_file;
 }
 
@@ -102,7 +97,7 @@ int main(int argc, char* argv[]) {
     clock_t timer = clock();
     if (strcmp(argv[1], "encode") == 0) {
         try {
-            long long len_of_file = encode(argv[2], argv[3]);
+            int64_t len_of_file = encode(argv[2], argv[3]);
             float time = (float)(clock() - timer) / CLOCKS_PER_SEC;
             double speed = (double) len_of_file / 1024 / 1024 / time;
             std::cout << "encode was finished in " << time << "s (" << speed << " Mb/s)" << std::endl;
@@ -113,7 +108,7 @@ int main(int argc, char* argv[]) {
     }
     if (strcmp(argv[1], "decode") == 0) {
         try {
-            long long len_of_file = decode(argv[2], argv[3]);
+            int64_t len_of_file = decode(argv[2], argv[3]);
             float time = (float) (clock() - timer) / CLOCKS_PER_SEC;
             double speed = (double) len_of_file / 1024 / 1024 / time;
             std::cout << "decode was finished in " << time << "s (" << speed << " Mb/s)" << std::endl;
